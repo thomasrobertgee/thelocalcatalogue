@@ -56,9 +56,9 @@ export const useMyFeed = () => {
           created_at,
           business:businesses (
             id,
-            name,
+            business_name,
             logo_url,
-            location
+            suburb
           )
         `)
         .in('business_id', followedBusinessIds)

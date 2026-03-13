@@ -25,9 +25,9 @@ export const getExplorePosts = async () => {
         description,
         created_at,
         business:businesses (
-          name,
+          business_name,
           logo_url,
-          location
+          suburb
         )
       `)
       .order('created_at', { ascending: false });

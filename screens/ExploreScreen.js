@@ -1,97 +1,112 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
   Image, 
-  TouchableOpacity, 
-  Modal, 
+  Pressable, 
   Text, 
   Dimensions, 
-  FlatList
+  RefreshControl,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X } from 'lucide-react-native';
+import { FlashList } from "@shopify/flash-list";
+import { getExplorePosts } from '../supabase';
 
 const { width } = Dimensions.get('window');
 
-const EXPLORE_DATA = [
-  { id: '1', businessName: 'The Local Coffee', productName: 'Cappuccino Art', imageUri: 'https://picsum.photos/id/102/400/600' },
-  { id: '2', businessName: 'Artisan Bakery', productName: 'Sourdough Loaf', imageUri: 'https://picsum.photos/id/101/400/400' },
-  { id: '3', businessName: 'Greenery Florals', productName: 'Rose Bouquet', imageUri: 'https://picsum.photos/id/100/400/500' },
-  { id: '4', businessName: 'Vintage Treasures', productName: 'Classic Camera', imageUri: 'https://picsum.photos/id/111/400/450' },
-  { id: '5', businessName: 'The Local Coffee', productName: 'Iced Latte', imageUri: 'https://picsum.photos/id/112/400/550' },
-  { id: '6', businessName: 'Artisan Bakery', productName: 'Blueberry Muffin', imageUri: 'https://picsum.photos/id/113/400/400' },
-  { id: '7', businessName: 'Greenery Florals', productName: 'Succulent Pot', imageUri: 'https://picsum.photos/id/114/400/500' },
-  { id: '8', businessName: 'Vintage Treasures', productName: 'Vinyl Record', imageUri: 'https://picsum.photos/id/115/400/450' },
-  { id: '9', businessName: 'The Local Coffee', productName: 'Espresso', imageUri: 'https://picsum.photos/id/116/400/550' },
-  { id: '10', businessName: 'Artisan Bakery', productName: 'Crossant', imageUri: 'https://picsum.photos/id/118/400/400' },
-];
+/**
+ * Explore Screen
+ * 
+ * Features a grid of all posts using FlashList.
+ * Fetches data from Supabase and joins with businesses.
+ */
+const ExploreScreen = ({ navigation }) => {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-const ExploreScreen = () => {
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const fetchPosts = useCallback(async () => {
+    try {
+      if (!refreshing) setLoading(true);
+      const data = await getExplorePosts();
+      setPosts(data || []);
+    } catch (err) {
+      console.error('Error fetching explore posts:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [refreshing]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchPosts();
+  };
 
   const handlePress = (item) => {
-    setSelectedItem(item);
-    setModalVisible(true);
+    navigation.navigate('PostDetail', { post: item });
   };
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity 
+    <Pressable 
       style={styles.itemContainer} 
       onPress={() => handlePress(item)}
-      activeOpacity={0.8}
     >
-      <Image 
-        source={{ uri: item.imageUri }} 
-        style={styles.image} 
-        resizeMode="cover"
-      />
-    </TouchableOpacity>
+      <View style={styles.card}>
+        <Image 
+          source={{ uri: item.image_url }} 
+          style={styles.image} 
+          resizeMode="cover"
+        />
+        <View style={styles.infoOverlay}>
+          <Text style={styles.businessName} numberOfLines={1}>
+            {item.business?.business_name || 'Local Shop'}
+          </Text>
+          <Text style={styles.suburbText} numberOfLines={1}>
+            {item.business?.suburb || 'Altona'}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
   );
 
+  if (loading && !refreshing) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <ActivityIndicator size="large" color="#1A1D1F" />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        data={EXPLORE_DATA}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Explore</Text>
+      </View>
+      
+      <FlashList
+        data={posts}
         numColumns={2}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
+        estimatedItemSize={200}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContainer}
+        keyExtractor={(item) => item.id.toString()}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor="#1A1D1F" 
+          />
+        }
       />
-
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity 
-              style={styles.closeButton} 
-              onPress={() => setModalVisible(false)}
-            >
-              <X size={24} color="#000" />
-            </TouchableOpacity>
-            
-            {selectedItem && (
-              <View>
-                <Image 
-                  source={{ uri: selectedItem.imageUri }} 
-                  style={styles.modalImage} 
-                  resizeMode="cover"
-                />
-                <View style={styles.modalTextContainer}>
-                  <Text style={styles.productName}>{selectedItem.productName}</Text>
-                  <Text style={styles.businessName}>{selectedItem.businessName}</Text>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -101,60 +116,57 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1A1D1F',
+    letterSpacing: -0.5,
+  },
   listContainer: {
-    padding: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 20,
   },
   itemContainer: {
-    flex: 0.5,
+    flex: 1,
     padding: 4,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#F4F4F4',
   },
   image: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 8,
-    backgroundColor: '#eee',
+    backgroundColor: '#F4F4F4',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: width * 0.8,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    zIndex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 20,
-    padding: 4,
-  },
-  modalImage: {
-    width: '100%',
-    height: 300,
-  },
-  modalTextContainer: {
-    padding: 20,
-  },
-  productName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  infoOverlay: {
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   businessName: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1A1D1F',
+  },
+  suburbText: {
+    fontSize: 11,
+    color: '#6F767E',
+    fontWeight: '500',
+    marginTop: 2,
   },
 });
 
