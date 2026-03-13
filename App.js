@@ -60,67 +60,67 @@ const SearchStack = () => (
   </Stack.Navigator>
 );
 
-const AppTabs = ({ navigation }) => {
+// Profile Tab Component
+const ProfileScreen = ({ navigation }) => {
   const { signOut, user } = useAuth();
   
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIcon: ({ color, size }) => {
-          let IconComponent;
-          switch (route.name) {
-            case 'My Feed': IconComponent = LayoutGrid; break;
-            case 'Explore': IconComponent = Compass; break;
-            case 'Search': IconComponent = SearchIcon; break;
-            case 'Create': IconComponent = PlusSquare; break;
-            case 'Profile': IconComponent = User; break;
-            default: IconComponent = LayoutGrid;
-          }
-          return <IconComponent color={color} size={size} />;
-        },
-        tabBarActiveTintColor: '#1A1D1F',
-        tabBarInactiveTintColor: '#6F767E',
-        tabBarStyle: {
-          paddingBottom: 30,
-          paddingTop: 12,
-          height: 90,
-          borderTopWidth: 1,
-          borderTopColor: '#F4F4F4',
-          backgroundColor: '#fff',
-        },
-      })}
-    >
-      <Tab.Screen name="My Feed" component={FeedStack} />
-      <Tab.Screen name="Explore" component={ExploreStack} />
-      <Tab.Screen name="Search" component={SearchStack} />
-      <Tab.Screen name="Create" component={CreatePost} />
-      <Tab.Screen 
-        name="Profile" 
-        component={() => (
-          <View style={styles.center}>
-            <Text style={styles.profileEmail}>{user?.email}</Text>
-            {user?.email === ADMIN_EMAIL && (
-              <TouchableOpacity 
-                style={styles.adminButton}
-                onPress={() => navigation.navigate('FounderDashboard')}
-              >
-                <ShieldCheck size={20} color="#fff" />
-                <Text style={styles.adminButtonText}>Founder Dashboard</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
-              <Text style={styles.signOutText}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
-        )} 
-      />
-    </Tab.Navigator>
+    <View style={styles.center}>
+      <Text style={styles.profileEmail}>{user?.email}</Text>
+      {user?.email === ADMIN_EMAIL && (
+        <TouchableOpacity 
+          style={styles.adminButton}
+          onPress={() => navigation.navigate('FounderDashboard')}
+        >
+          <ShieldCheck size={20} color="#fff" />
+          <Text style={styles.adminButtonText}>Founder Dashboard</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </TouchableOpacity>
+    </View>
   );
 };
 
+const AppTabs = () => (
+  <Tab.Navigator
+    screenOptions={({ route }) => ({
+      headerShown: false,
+      tabBarIcon: ({ color, size }) => {
+        let IconComponent;
+        switch (route.name) {
+          case 'My Feed': IconComponent = LayoutGrid; break;
+          case 'Explore': IconComponent = Compass; break;
+          case 'Search': IconComponent = SearchIcon; break;
+          case 'Create': IconComponent = PlusSquare; break;
+          case 'Profile': IconComponent = User; break;
+          default: IconComponent = LayoutGrid;
+        }
+        return <IconComponent color={color} size={size} />;
+      },
+      tabBarActiveTintColor: '#1A1D1F',
+      tabBarInactiveTintColor: '#6F767E',
+      tabBarStyle: {
+        paddingBottom: 30,
+        paddingTop: 12,
+        height: 90,
+        borderTopWidth: 1,
+        borderTopColor: '#F4F4F4',
+        backgroundColor: '#fff',
+      },
+    })}
+  >
+    <Tab.Screen name="My Feed" component={FeedStack} />
+    <Tab.Screen name="Explore" component={ExploreStack} />
+    <Tab.Screen name="Search" component={SearchStack} />
+    <Tab.Screen name="Create" component={CreatePost} />
+    <Tab.Screen name="Profile" component={ProfileScreen} />
+  </Tab.Navigator>
+);
+
 const RootNavigator = () => {
-  const { session, loading, user } = useAuth();
+  const { session, loading } = useAuth();
 
   useEffect(() => {
     if (session?.user) {
@@ -142,9 +142,13 @@ const RootNavigator = () => {
   }, [session]);
 
   const registerAndSaveToken = async (userId) => {
-    const token = await registerForPushNotificationsAsync();
-    if (token) {
-      await savePushToken(userId, token);
+    try {
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        await savePushToken(userId, token);
+      }
+    } catch (e) {
+      console.log('Push Registration skipped:', e.message);
     }
   };
 

@@ -47,11 +47,16 @@ export async function registerForPushNotificationsAsync() {
       Constants?.expoConfig?.extra?.eas?.projectId ?? 
       Constants?.easConfig?.projectId;
 
+    if (!projectId) {
+      console.warn('Push Notifications: No EAS projectId found. Remote notifications will not work in production.');
+      return null;
+    }
+
     try {
       token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
       console.log('Push Token:', token);
     } catch (e) {
-      console.error('Error getting push token:', e);
+      console.log('Error getting push token:', e.message);
     }
   } else {
     console.log('Must use physical device for Push Notifications');

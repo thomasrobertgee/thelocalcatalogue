@@ -50,11 +50,16 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
-        .single();
+        .eq('id', userId);
 
       if (error) throw error;
-      setProfile(data);
+      
+      // Use the first result if available instead of forcing .single()
+      if (data && data.length > 0) {
+        setProfile(data[0]);
+      } else {
+        setProfile(null);
+      }
     } catch (err) {
       console.error('Error fetching profile in AuthProvider:', err.message);
       setProfile(null);
