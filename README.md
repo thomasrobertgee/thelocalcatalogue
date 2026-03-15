@@ -1,74 +1,52 @@
 # TheLocalCatalogue
 
-**TheLocalCatalogue** is a local-first social discovery platform built with **React Native (Expo)** and **Supabase**. It aims to revitalize community engagement by connecting local residents with small businesses through a visual, discovery-driven interface.
+**TheLocalCatalogue** is a local-first social discovery platform built with **React Native (Expo)** and **Supabase**. It connects local residents with small businesses through a visually rich, discovery-driven interface.
 
 ---
 
-## 📋 Current Project Status
-The app is currently in a **functional prototype stage**. The core architecture is "hardened" for Expo SDK 54, with a fully integrated Supabase backend, AI-powered content creation, and a private founder dashboard for platform management.
+## 📋 Project Status
+The app is currently a **fully functional prototype**. It features a hardened architecture for Expo SDK 54, real-time Supabase integration, and interactive Instagram-style media components.
 
 ---
 
 ## 🚀 Core Features
 
-### 1. Social & Discovery
-- **My Feed:** A personalized stream showing real-time updates from only the businesses a user follows.
-- **Explore Grid:** A high-performance, 2-column masonry grid (powered by `@shopify/flash-list`) for discovering all local products and services.
-- **Advanced Search:** Real-time, debounced search that filters by keywords, business categories (Cafe, Fitness, etc.), and specific suburbs (Altona North, Williamstown, etc.).
-- **Business Profiles:** Detailed profile pages for local shops featuring their logo, location, real-time follower counts, and a dedicated 3-column gallery of their posts.
+### 1. Interactive Media (New!)
+- **Post Albums:** Standardized `PostAlbum` component for swiping through multi-photo posts.
+- **Micro-animations:** High-quality "Double-tap to Like" heart animations powered by `Reanimated` and `Gesture Handler`.
+- **UI Indicators:** Native pagination dots for multi-image navigation.
 
-### 2. Intelligent Content Creation
-- **Role-Based Posting:** 
-  - **Businesses:** Can share updates with price tags and captions.
-  - **Regular Users:** Can share photos by **tagging** a local business from a searchable database.
-- **Multi-Media Support:** Users can take photos directly via a custom camera interface or select up to 5 photos from their gallery.
-- **Gemini AI Integration:** Utilizes **Google Gemini 1.5 Flash** to analyze uploaded photos, automatically extracting product names and prices while generating catchy, localized Instagram-style captions with hashtags.
-- **Parallel Uploads:** Fast media handling with parallel Supabase Storage uploads.
+### 2. Social & Discovery
+- **My Feed:** Personalized content from followed local businesses.
+- **Explore Grid:** Performance-optimized masonry discovery grid for all local updates.
+- **Advanced Search:** Real-time filtering by categories (Cafe, Fitness, etc.) and suburbs.
+- **Business Profiles:** Rich profiles featuring real-time stats and full product galleries.
 
-### 3. Authentication & Security
-- **Unified Auth:** Secure Email/Password login and sign-up with automatic user profile creation.
-- **Self-Healing Profiles:** A robust `AuthProvider` that detects and fixes missing database rows automatically to ensure data integrity.
-- **Private Admin Access:** A secret **Founder Dashboard** accessible only to verified admin emails, featuring platform metrics and development tools.
-
-### 4. System & Notifications
-- **Push Notifications:** Integrated Expo Push logic with follower-targeting (Notifications are currently optimized for Development Builds).
-- **Diagnostic Tools:** A built-in "Connection Test" screen to verify Supabase and Gemini API keys are active.
+### 3. AI-Powered Content Creation
+- **Auto-fill Metadata:** **Google Gemini 1.5 Flash** analyzes photos to extract product names, prices, and generate catchy captions.
+- **Dynamic Tagging:** Users can tag businesses in their posts via a searchable database modal.
+- **Media Capture:** Integrated custom camera interface and multi-select gallery picker.
 
 ---
 
 ## 🛠️ Tech Stack
-- **Framework:** Expo SDK 54 (React Native)
-- **Backend:** Supabase (PostgreSQL, Real-time, Auth, Storage)
-- **AI:** Google Gemini 1.5 Flash API
-- **Icons:** Lucide React Native (Standardized set)
-- **Navigation:** React Navigation (Tabs + Native Stack)
-- **Styling:** Standard React Native StyleSheet with a clean "Startup" aesthetic.
+- **Frontend:** Expo SDK 54 (React Native)
+- **Backend:** Supabase (Auth, DB, Storage, Real-time)
+- **Animations:** React Native Reanimated & Gesture Handler
+- **AI:** Google Gemini 1.5 Flash
+- **Grid Rendering:** @shopify/flash-list
 
 ---
 
-## 🗄️ Database Schema (Current)
-- **profiles:** User metadata (`id`, `is_business`, `push_token`).
-- **businesses:** Local shop details (`business_name`, `suburb`, `category`, `address`).
-- **posts:** Central content table (`business_id`, `image_url`, `caption`, `price`).
-- **post_images:** Support for multi-photo posts (`post_id`, `image_url`, `order_index`).
-- **followers:** Real-time relationship map between users and businesses.
-
----
-
-## 🧪 Testing & Seeding
-For rapid content testing, use the **Founder Dashboard** (accessible from the Profile tab if logged in as the admin):
-1. Tap **Founder Dashboard**.
-2. Tap **Seed Database**.
-3. This adds 5 businesses and 15 posts (including multi-photo albums) to your Supabase instance instantly.
+## 🧪 Seeding for AI Suggestion Review
+Admin users (thomasrobertgee@gmail.com) can access the **Founder Dashboard** to:
+1. Trigger the **Seed Database** tool.
+2. Instantly populate the app with **5 businesses** and **15 multi-photo posts**.
+3. Verify interactive features like "Following" and "Liking."
 
 ---
 
 ## 📦 Getting Started
-1. **Clone & Install:** `npm install`
-2. **Setup Env:** Create a `.env` file using the keys provided in `.env.example`.
-3. **Run:** `npx expo start -c`
-
----
-
-## 📄 License
-Private development project. All rights reserved.
+1. `npm install`
+2. Configure `.env` from `.env.example`
+3. `npx expo start -c`
