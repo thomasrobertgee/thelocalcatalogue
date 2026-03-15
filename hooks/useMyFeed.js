@@ -52,12 +52,11 @@ export const useMyFeed = () => {
         .select(`
           id,
           image_url,
-          description,
+          caption,
           created_at,
           business:businesses (
             id,
             business_name,
-            logo_url,
             suburb
           )
         `)

@@ -2,13 +2,15 @@ import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { MapPin, Heart, MessageCircle, Send, MoreVertical } from 'lucide-react-native';
 
-const FeedCard = ({ businessName, location, imageUri, description }) => {
+const FeedCard = ({ businessName, location, imageUri, caption, hideFollow }) => {
   return (
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.avatarPlaceholder} />
+          <View style={[styles.avatarPlaceholder, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A1D1F' }]}>
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>{businessName?.charAt(0)}</Text>
+          </View>
           <View>
             <Text style={styles.businessName}>{businessName}</Text>
             <View style={styles.locationContainer}>
@@ -17,9 +19,11 @@ const FeedCard = ({ businessName, location, imageUri, description }) => {
             </View>
           </View>
         </View>
-        <TouchableOpacity style={styles.followButton}>
-          <Text style={styles.followButtonText}>Follow</Text>
-        </TouchableOpacity>
+        {!hideFollow && (
+          <TouchableOpacity style={styles.followButton}>
+            <Text style={styles.followButtonText}>Follow</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Image */}
@@ -39,7 +43,7 @@ const FeedCard = ({ businessName, location, imageUri, description }) => {
       <View style={styles.descriptionContainer}>
         <Text style={styles.description}>
           <Text style={styles.businessNameInline}>{businessName} </Text>
-          {description}
+          {caption}
         </Text>
       </View>
     </View>
@@ -65,7 +69,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#eee',
     marginRight: 10,
   },
   businessName: {

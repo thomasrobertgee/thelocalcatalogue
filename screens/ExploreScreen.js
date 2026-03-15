@@ -15,12 +15,6 @@ import { getExplorePosts } from '../supabase';
 
 const { width } = Dimensions.get('window');
 
-/**
- * Explore Screen
- * 
- * Features a grid of all posts using FlashList.
- * Fetches data from Supabase and joins with businesses.
- */
 const ExploreScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +26,7 @@ const ExploreScreen = ({ navigation }) => {
       const data = await getExplorePosts();
       setPosts(data || []);
     } catch (err) {
-      console.error('Error fetching explore posts:', err);
+      console.error('Explore fetch error:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -48,14 +42,10 @@ const ExploreScreen = ({ navigation }) => {
     fetchPosts();
   };
 
-  const handlePress = (item) => {
-    navigation.navigate('PostDetail', { post: item });
-  };
-
   const renderItem = ({ item }) => (
     <Pressable 
       style={styles.itemContainer} 
-      onPress={() => handlePress(item)}
+      onPress={() => navigation.navigate('PostDetail', { post: item })}
     >
       <View style={styles.card}>
         <Image 
@@ -65,10 +55,10 @@ const ExploreScreen = ({ navigation }) => {
         />
         <View style={styles.infoOverlay}>
           <Text style={styles.businessName} numberOfLines={1}>
-            {item.business?.business_name || 'Local Shop'}
+            {item.caption?.substring(0, 20) || 'Local update'}
           </Text>
           <Text style={styles.suburbText} numberOfLines={1}>
-            {item.business?.suburb || 'Altona'}
+            {item.business?.business_name} • {item.business?.suburb}
           </Text>
         </View>
       </View>
@@ -77,9 +67,9 @@ const ExploreScreen = ({ navigation }) => {
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={styles.centered}>
+      <View style={styles.centered}>
         <ActivityIndicator size="large" color="#1A1D1F" />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -88,7 +78,6 @@ const ExploreScreen = ({ navigation }) => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Explore</Text>
       </View>
-      
       <FlashList
         data={posts}
         numColumns={2}
@@ -99,75 +88,23 @@ const ExploreScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
         keyExtractor={(item) => item.id.toString()}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
-            tintColor="#1A1D1F" 
-          />
-        }
       />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1A1D1F',
-    letterSpacing: -0.5,
-  },
-  listContainer: {
-    paddingHorizontal: 8,
-    paddingBottom: 20,
-  },
-  itemContainer: {
-    flex: 1,
-    padding: 4,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#F4F4F4',
-  },
-  image: {
-    width: '100%',
-    aspectRatio: 1,
-    backgroundColor: '#F4F4F4',
-  },
-  infoOverlay: {
-    padding: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-  },
-  businessName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1A1D1F',
-  },
-  suburbText: {
-    fontSize: 11,
-    color: '#6F767E',
-    fontWeight: '500',
-    marginTop: 2,
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
+  header: { paddingHorizontal: 20, paddingVertical: 12 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: '#1A1D1F' },
+  listContainer: { paddingHorizontal: 8, paddingBottom: 20 },
+  itemContainer: { flex: 1, padding: 4 },
+  card: { backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#F4F4F4' },
+  image: { width: '100%', aspectRatio: 1, backgroundColor: '#F4F4F4' },
+  infoOverlay: { padding: 10, backgroundColor: 'rgba(255, 255, 255, 0.95)' },
+  businessName: { fontSize: 13, fontWeight: '700', color: '#1A1D1F' },
+  suburbText: { fontSize: 11, color: '#6F767E', fontWeight: '500', marginTop: 2 },
 });
 
 export default ExploreScreen;

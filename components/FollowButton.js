@@ -1,25 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, Alert, View } from 'react-native';
 import { supabase } from '../supabase';
+import { useAuth } from '../context/AuthProvider';
 
 /**
  * FollowButton component for real-time following logic.
- * 
- * @param {string} businessId - The ID of the business to follow/unfollow.
  */
 const FollowButton = ({ businessId }) => {
+  const { user, profile } = useAuth();
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
   const checkFollowStatus = useCallback(async () => {
+    if (!businessId || !user) {
+      setLoading(false);
+      return;
+    }
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('followers')
         .select('*')
@@ -27,7 +26,7 @@ const FollowButton = ({ businessId }) => {
         .eq('business_id', businessId)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      if (error && error.code !== 'PGRST116') {
         console.error('Error checking follow status:', error.message);
       }
 
@@ -37,17 +36,21 @@ const FollowButton = ({ businessId }) => {
     } finally {
       setLoading(false);
     }
-  }, [businessId]);
+  }, [businessId, user]);
 
   useEffect(() => {
     checkFollowStatus();
   }, [checkFollowStatus]);
 
   const handleToggleFollow = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    
     if (!user) {
       Alert.alert('Sign In Required', 'Please sign in to follow businesses.');
+      return;
+    }
+
+    if (!profile) {
+      Alert.alert('Profile Missing', 'Your user profile was not found. Try signing out and back in to sync your account.');
+      console.error('Follow error: User has session but no row in profiles table. ID:', user.id);
       return;
     }
 
@@ -55,7 +58,6 @@ const FollowButton = ({ businessId }) => {
 
     try {
       if (isFollowing) {
-        // Unfollow: Delete record
         const { error } = await supabase
           .from('followers')
           .delete()
@@ -65,17 +67,22 @@ const FollowButton = ({ businessId }) => {
         if (error) throw error;
         setIsFollowing(false);
       } else {
-        // Follow: Insert record
+        console.log(`Attempting follow: User ${user.id} -> Business ${businessId}`);
         const { error } = await supabase
           .from('followers')
           .insert([{ user_id: user.id, business_id: businessId }]);
 
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23503') {
+            throw new Error('Database Error: Your profile is not correctly synced. Please contact support.');
+          }
+          throw error;
+        }
         setIsFollowing(true);
       }
     } catch (err) {
-      Alert.alert('Error', 'Could not update follow status. Please try again.');
-      console.error('Toggle follow error:', err.message);
+      Alert.alert('Action Failed', err.message);
+      console.error('Toggle follow error details:', err);
     } finally {
       setActionLoading(false);
     }

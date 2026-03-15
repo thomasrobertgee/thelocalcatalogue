@@ -28,7 +28,8 @@ const FeedScreen = ({ navigation }) => {
             businessName={item.business?.business_name}
             location={item.business?.suburb}
             imageUri={item.image_url}
-            description={item.description}
+            caption={item.caption}
+            hideFollow={true}
             onPress={() => navigation.navigate('PostDetail', { post: item })}
           />
         )}

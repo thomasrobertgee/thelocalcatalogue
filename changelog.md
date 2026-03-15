@@ -2,23 +2,17 @@
 
 ## [2026-03-13]
 ### Added
-- **Authentication System:** Implemented `Auth.js` with Login/Sign-up toggles and `profiles` table integration.
-- **Global Auth Context:** Created `AuthProvider.js` and `useAuth` hook for centralized session and profile management.
-- **Push Notifications:** Set up `notifications.js` utility for Expo Push Token registration and real-time alerts for followers.
-- **Advanced Content Creation:** Upgraded `CreatePost.js` to support:
-  - Multi-photo selection (up to 5).
-  - Direct camera capture using `expo-camera`.
-  - Parallel image uploads to Supabase Storage.
-  - Relational image storage in `post_images` table.
-- **AI Integration:** Enhanced Gemini AI logic to analyze the first photo of a multi-photo post for auto-filling.
-- **Founder Dashboard:** Developed a private, dark-mode admin screen for monitoring platform growth and trending businesses.
-- **Business Profiles:** Implemented `BusinessProfile.js` with full stats and 3-column post grids.
-- **System Diagnostics:** Created `ConnectionTest.js` to verify Supabase and Gemini connectivity.
-- **Layout Optimization:** Standardized Safe Area handling across all screens and pushed up the bottom tab bar for better ergonomics.
+- **Dynamic Business Tagging:** Regular users can now search for and tag businesses when creating a post via a new search modal.
+- **Self-Healing Profiles:** `AuthProvider` now automatically creates a database profile row if a user logs in but is missing one, preventing foreign key crashes.
+- **Database Seeder:** Integrated a "Seed Database" tool in the Founder Dashboard to populate the app with 5 businesses and 15 posts instantly.
+- **Improved Profile Tab:** Users can now view a live list of every business they follow and navigate directly to their profiles.
+- **Delete Account Option:** Added "Delete My Profile Data" functionality for easier testing and account resetting.
+- **Media UI:** Upgraded the Create tab with large, accessible "Take Photo" and "Gallery" buttons.
 
 ### Fixed
-- **Navigation Errors:** Resolved `NativeStackView` resolution issues by realigning navigation dependency versions.
-- **Syntax Errors:** Corrected mismatched JSX tags in `BusinessProfile.js`.
-- **Database Schema Mismatches:** Updated all queries to use `business_name` and `suburb` columns instead of `name` and `location`.
-- **Git Security:** Added `.env` to `.gitignore` to prevent leaking API keys.
-- **Auth Sync:** Removed redundant `email` column from profile creation to prevent schema cache errors.
+- **React Navigation Crashes:** Hardened `App.js` with standard function declarations and removed nested conditional groups to eliminate the "type is invalid" error.
+- **Database Alignment:** Corrected schema mismatches across all queries (`description` -> `caption`, `name` -> `business_name`, `location` -> `suburb`).
+- **Icon Stability:** Standardized all icon names to prevent crashes caused by deprecated or renamed Lucide components.
+- **Text String Errors:** Resolved "Text strings must be rendered within a <Text> component" errors in `ExploreScreen` and `BusinessProfile` by cleaning up stray whitespace and template literals.
+- **Push Notification Crashes:** Implemented dynamic imports in `notifications.js` to completely shield Expo Go from SDK 54 notification errors.
+- **Logo Fallbacks:** Added letter-circle fallbacks for businesses without `logo_url` data.

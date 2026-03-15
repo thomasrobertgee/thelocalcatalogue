@@ -20,13 +20,13 @@ export const getExplorePosts = async () => {
       .from('posts')
       .select(`
         id,
-        product_name,
+        business_id,
         image_url,
-        description,
+        caption,
         created_at,
         business:businesses (
+          id,
           business_name,
-          logo_url,
           suburb
         )
       `)

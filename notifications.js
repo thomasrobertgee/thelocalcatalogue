@@ -1,123 +1,59 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import * as Device from 'expo-device';
 import { supabase } from './supabase';
 
-/**
- * Configures how notifications are handled when the app is foregrounded.
- */
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+const isExpoGo = Constants.appOwnership === 'expo';
 
 /**
- * Requests permissions and retrieves the Expo Push Token.
+ * All notification logic is wrapped in an async loader 
+ * to prevent top-level 'expo-notifications' imports from
+ * crashing Expo Go (SDK 53+).
  */
+
 export async function registerForPushNotificationsAsync() {
-  let token;
+  if (isExpoGo || !Device.isDevice) return null;
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
-    });
+  // Dynamic import to hide from Expo Go
+  const Notifications = await import('expo-notifications');
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
   }
+  if (finalStatus !== 'granted') return null;
 
-  if (Device.isDevice) {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notification!');
-      return;
-    }
-    
-    // projectId is required for Expo SDK 49+
-    const projectId = 
-      Constants?.expoConfig?.extra?.eas?.projectId ?? 
-      Constants?.easConfig?.projectId;
+  const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+  if (!projectId) return null;
 
-    if (!projectId) {
-      console.warn('Push Notifications: No EAS projectId found. Remote notifications will not work in production.');
-      return null;
-    }
-
-    try {
-      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      console.log('Push Token:', token);
-    } catch (e) {
-      console.log('Error getting push token:', e.message);
-    }
-  } else {
-    console.log('Must use physical device for Push Notifications');
+  try {
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    return token;
+  } catch (e) {
+    return null;
   }
-
-  return token;
 }
 
-/**
- * Saves the push token to the user's profile in Supabase.
- */
 export async function savePushToken(userId, token) {
   if (!userId || !token) return;
-
   try {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ push_token: token })
-      .eq('id', userId);
-
-    if (error) throw error;
+    await supabase.from('profiles').update({ push_token: token }).eq('id', userId);
   } catch (err) {
-    console.error('Error saving push token to Supabase:', err.message);
+    console.log('Error saving push token:', err.message);
   }
 }
 
-/**
- * Logic to notify followers when a new post is created.
- * In a production environment, this should ideally be handled 
- * by a Supabase Edge Function (Webhook).
- * 
- * @param {string} businessId - The ID of the business that posted.
- * @param {string} businessName - The display name of the business.
- */
 export async function notifyFollowers(businessId, businessName) {
   try {
-    // 1. Find all followers of this business
-    const { data: followers, error: followerError } = await supabase
-      .from('followers')
-      .select('user_id')
-      .eq('business_id', businessId);
-
-    if (followerError) throw followerError;
+    const { data: followers } = await supabase.from('followers').select('user_id').eq('business_id', businessId);
     if (!followers || followers.length === 0) return;
 
     const userIds = followers.map(f => f.user_id);
+    const { data: profiles } = await supabase.from('profiles').select('push_token').in('id', userIds).not('push_token', 'is', null);
+    if (!profiles || profiles.length === 0) return;
 
-    // 2. Get push tokens for those users from profiles table
-    const { data: profiles, error: profileError } = await supabase
-      .from('profiles')
-      .select('push_token')
-      .in('id', userIds)
-      .not('push_token', 'is', null);
-
-    if (profileError) throw profileError;
-    
     const tokens = profiles.map(p => p.push_token);
-
-    if (tokens.length === 0) return;
-
-    // 3. Send notifications via Expo's push service
     const messages = tokens.map(token => ({
       to: token,
       sound: 'default',
@@ -128,15 +64,10 @@ export async function notifyFollowers(businessId, businessName) {
 
     await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
+      headers: { Accept: 'application/json', 'Accept-encoding': 'gzip, deflate', 'Content-Type': 'application/json' },
       body: JSON.stringify(messages),
     });
-
   } catch (err) {
-    console.error('Error in notifyFollowers:', err.message);
+    console.log('Error in notifyFollowers:', err.message);
   }
 }

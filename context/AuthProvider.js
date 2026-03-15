@@ -54,11 +54,23 @@ export const AuthProvider = ({ children }) => {
 
       if (error) throw error;
       
-      // Use the first result if available instead of forcing .single()
       if (data && data.length > 0) {
         setProfile(data[0]);
       } else {
-        setProfile(null);
+        // SELF-HEALING: Create missing profile row if it doesn't exist
+        console.log(`Profile missing for user ${userId}. Creating default profile...`);
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert([{ id: userId, is_business: false }])
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Failed to self-heal profile:', createError.message);
+          setProfile(null);
+        } else {
+          setProfile(newProfile);
+        }
       }
     } catch (err) {
       console.error('Error fetching profile in AuthProvider:', err.message);

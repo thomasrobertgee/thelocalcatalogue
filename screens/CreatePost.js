@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -12,48 +12,71 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
-  Modal
+  Modal,
+  FlatList
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Picker } from '@react-native-picker/picker';
-import { Camera, X, Upload, Sparkles, CheckCircle2, Image as ImageIcon, Plus } from 'lucide-react-native';
+import { 
+  Camera, 
+  X, 
+  Upload, 
+  Sparkles, 
+  Image as ImageIcon, 
+  Search, 
+  ChevronRight, 
+  Plus 
+} from 'lucide-react-native';
 import { supabase } from '../supabase';
+import { useAuth } from '../context/AuthProvider';
 import { analyzeProductImage } from '../gemini';
 import { notifyFollowers } from '../notifications';
 
 const { width } = Dimensions.get('window');
 
 const CreatePost = ({ navigation }) => {
+  const { user, profile } = useAuth();
   const [images, setImages] = useState([]);
   const [caption, setCaption] = useState('');
   const [price, setPrice] = useState('');
-  const [productName, setProductName] = useState('');
-  const [selectedBusiness, setSelectedBusiness] = useState('');
-  const [businesses, setBusinesses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
-  const [cameraVisible, setCameraVisible] = useState(false);
   
+  const [tagModalVisible, setTagModalVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedBusiness, setSelectedBusiness] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  const [cameraVisible, setCameraVisible] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
 
   useEffect(() => {
-    fetchBusinesses();
-  }, []);
+    if (searchQuery.length > 1) {
+      const delayDebounce = setTimeout(() => searchBusinesses(), 300);
+      return () => clearTimeout(delayDebounce);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
 
-  const fetchBusinesses = async () => {
+  const searchBusinesses = async () => {
+    setSearching(true);
     try {
       const { data, error } = await supabase
         .from('businesses')
-        .select('id, business_name')
-        .order('business_name');
+        .select('id, business_name, suburb')
+        .ilike('business_name', `%${searchQuery}%`)
+        .limit(10);
       if (error) throw error;
-      setBusinesses(data || []);
-      if (data?.length > 0) setSelectedBusiness(data[0].id);
+      setSearchResults(data || []);
     } catch (err) {
-      console.error('Error fetching businesses:', err.message);
+      console.log('Search error:', err.message);
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -64,15 +87,13 @@ const CreatePost = ({ navigation }) => {
       selectionLimit: 5 - images.length,
       quality: 0.8,
     });
-
     if (!result.canceled) {
-      const newImages = result.assets.slice(0, 5 - images.length);
-      setImages([...images, ...newImages]);
+      setImages([...images, ...result.assets.slice(0, 5 - images.length)]);
     }
   };
 
   const takePhoto = async () => {
-    if (!permission.granted) {
+    if (!permission?.granted) {
       const status = await requestPermission();
       if (!status.granted) return;
     }
@@ -87,100 +108,50 @@ const CreatePost = ({ navigation }) => {
     }
   };
 
-  const removeImage = (index) => {
-    const newImages = [...images];
-    newImages.splice(index, 1);
-    setImages(newImages);
-  };
-
-  const handleAIAnalysis = async () => {
-    if (images.length === 0) return;
-    setAnalyzing(true);
-    try {
-      // Analyze the first image
-      const result = await analyzeProductImage(images[0].uri);
-      
-      setProductName(result.product_name || '');
-      setPrice(result.price ? result.price.toString() : '');
-      setCaption(result.caption || '');
-      
-      setIsReviewMode(true);
-      Alert.alert("AI Analysis Complete", "We've pre-filled the details based on your first photo!");
-    } catch (err) {
-      Alert.alert("Analysis Failed", "Could not analyze the image.");
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
   const handleUpload = async () => {
-    if (images.length === 0 || !caption || !selectedBusiness) {
-      Alert.alert('Incomplete Form', 'Please provide at least one image, a caption, and select a business.');
+    if (images.length === 0 || !caption) {
+      Alert.alert('Incomplete', 'Add photos and a caption.');
+      return;
+    }
+    if (!profile?.is_business && !selectedBusiness) {
+      Alert.alert('Tag a Business', 'Tag the local business you are visiting.');
       return;
     }
 
     setLoading(true);
     try {
-      // 1. Create the post entry
+      const targetId = profile?.is_business ? user.id : selectedBusiness.id;
       const { data: postData, error: postError } = await supabase
         .from('posts')
         .insert([{
-          business_id: selectedBusiness,
-          product_name: productName,
-          description: caption,
-          price: price ? parseFloat(price) : null,
-          image_url: '', // Primary image placeholder, we'll update this
+          business_id: targetId,
+          caption: caption,
+          price: profile?.is_business && price ? parseFloat(price) : null,
+          image_url: '', 
           created_at: new Date().toISOString()
         }])
-        .select()
-        .single();
+        .select().single();
 
       if (postError) throw postError;
 
-      // 2. Upload images in parallel
       const uploadPromises = images.map(async (img, index) => {
         const fileExt = img.uri.split('.').pop();
-        const fileName = `${postData.id}_${index}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `posts/${fileName}`;
-
+        const filePath = `posts/${postData.id}_${index}.${fileExt}`;
         const response = await fetch(img.uri);
         const blob = await response.blob();
-
-        const { error: uploadError } = await supabase.storage
-          .from('post-images')
-          .upload(filePath, blob);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('post-images')
-          .getPublicUrl(filePath);
-
+        await supabase.storage.from('post-images').upload(filePath, blob);
+        const { data: { publicUrl } } = supabase.storage.from('post-images').getPublicUrl(filePath);
         return { post_id: postData.id, image_url: publicUrl, order_index: index };
       });
 
-      const uploadedImages = await Promise.all(uploadPromises);
+      const uploaded = await Promise.all(uploadPromises);
+      await supabase.from('post_images').insert(uploaded);
+      await supabase.from('posts').update({ image_url: uploaded[0].image_url }).eq('id', postData.id);
 
-      // 3. Save multiple images to post_images table
-      const { error: imgTableError } = await supabase
-        .from('post_images')
-        .insert(uploadedImages);
+      if (profile?.is_business) notifyFollowers(user.id, profile.business_name);
 
-      if (imgTableError) throw imgTableError;
-
-      // 4. Update primary image_url in posts table with the first image
-      await supabase
-        .from('posts')
-        .update({ image_url: uploadedImages[0].image_url })
-        .eq('id', postData.id);
-
-      // 5. Trigger Push Notifications
-      const currentBiz = businesses.find(b => b.id === selectedBusiness);
-      if (currentBiz) {
-        notifyFollowers(selectedBusiness, currentBiz.business_name);
-      }
-
-      Alert.alert('Success', 'Post shared with the community!');
+      Alert.alert('Success', 'Post shared!');
+      setImages([]); setCaption(''); setPrice(''); setSelectedBusiness(null);
       navigation.navigate('Explore');
     } catch (err) {
       Alert.alert('Upload Failed', err.message);
@@ -191,95 +162,72 @@ const CreatePost = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Create New Post</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()}><X size={24} color="#000" /></TouchableOpacity>
+          <Text style={styles.headerTitle}>New Update</Text>
+          <Text style={styles.headerSubtitle}>Posting as {profile?.is_business ? profile.business_name : 'Local User'}</Text>
         </View>
 
-        {/* Multi-Image Review */}
         <View style={styles.mediaSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScroll}>
-            {images.map((img, index) => (
-              <View key={index} style={styles.thumbnailContainer}>
-                <Image source={{ uri: img.uri }} style={styles.thumbnail} />
-                <TouchableOpacity style={styles.removeBtn} onPress={() => removeImage(index)}>
-                  <X size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ))}
-            {images.length < 5 && (
-              <View style={styles.mediaButtons}>
-                <TouchableOpacity style={styles.addMediaBtn} onPress={takePhoto}>
-                  <Camera size={24} color="#6F767E" />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.addMediaBtn, { marginTop: 8 }]} onPress={pickImages}>
-                  <ImageIcon size={24} color="#6F767E" />
-                </TouchableOpacity>
-              </View>
-            )}
-          </ScrollView>
-          {images.length === 0 && (
-            <View style={styles.emptyMedia}>
-              <Text style={styles.emptyMediaText}>Capture or select up to 5 photos</Text>
+          {images.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageScroll}>
+              {images.map((img, index) => (
+                <View key={index} style={styles.thumbnailContainer}>
+                  <Image source={{ uri: img.uri }} style={styles.thumbnail} />
+                  <TouchableOpacity style={styles.removeBtn} onPress={() => setImages(images.filter((_, i) => i !== index))}><X size={14} color="#fff" /></TouchableOpacity>
+                </View>
+              ))}
+              {images.length < 5 && <TouchableOpacity style={styles.addMoreBtn} onPress={takePhoto}><Plus size={24} color="#6F767E" /></TouchableOpacity>}
+            </ScrollView>
+          ) : (
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.largeMediaBtn} onPress={takePhoto}><Camera size={28} color="#1A1D1F" /><Text style={styles.mediaBtnText}>Take a Photo</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.largeMediaBtn} onPress={pickImages}><ImageIcon size={28} color="#1A1D1F" /><Text style={styles.mediaBtnText}>Choose Gallery</Text></TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* AI Action */}
-        {images.length > 0 && !isReviewMode && (
-          <TouchableOpacity 
-            style={[styles.aiButton, analyzing && styles.disabledBtn]} 
-            onPress={handleAIAnalysis}
-            disabled={analyzing}
-          >
-            {analyzing ? <ActivityIndicator color="#fff" /> : 
-            <><Sparkles size={18} color="#fff" style={styles.btnIcon} /><Text style={styles.aiButtonText}>Auto-fill with AI (First Photo)</Text></>}
-          </TouchableOpacity>
-        )}
-
         <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Select Business</Text>
-            <View style={styles.pickerWrapper}>
-              <Picker selectedValue={selectedBusiness} onValueChange={(v) => setSelectedBusiness(v)}>
-                {businesses.map((biz) => <Picker.Item key={biz.id} label={biz.business_name} value={biz.id} />)}
-              </Picker>
+          {profile?.is_business ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Price (Optional)</Text>
+              <TextInput style={styles.input} placeholder="0.00" keyboardType="decimal-pad" value={price} onChangeText={setPrice} />
             </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Product Name</Text>
-            <TextInput style={styles.input} placeholder="e.g. Fresh Sourdough" value={productName} onChangeText={setProductName} />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Price</Text>
-            <TextInput style={styles.input} placeholder="0.00" keyboardType="decimal-pad" value={price} onChangeText={setPrice} />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Caption</Text>
-            <TextInput style={[styles.input, styles.textArea]} placeholder="What's the update?" multiline value={caption} onChangeText={setCaption} />
-          </View>
-
-          <TouchableOpacity style={[styles.submitButton, (loading || images.length === 0) && styles.disabledBtn]} onPress={handleUpload} disabled={loading || images.length === 0}>
-            {loading ? <ActivityIndicator color="#fff" /> : 
-            <><Upload size={20} color="#fff" style={styles.btnIcon} /><Text style={styles.submitButtonText}>Share Post ({images.length} Photos)</Text></>}
+          ) : (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Tag Business</Text>
+              <TouchableOpacity style={styles.searchSelector} onPress={() => setTagModalVisible(true)}>
+                <Search size={20} color={selectedBusiness ? '#1A1D1F' : '#6F767E'} />
+                <Text style={[styles.selectorText, selectedBusiness && { color: '#1A1D1F', fontWeight: '500' }]}>{selectedBusiness ? selectedBusiness.business_name : 'Search local business...'}</Text>
+                <ChevronRight size={20} color="#6F767E" />
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={styles.inputGroup}><Text style={styles.label}>Caption</Text><TextInput style={[styles.input, styles.textArea]} placeholder="What's happening?" multiline value={caption} onChangeText={setCaption} /></View>
+          <TouchableOpacity style={[styles.submitButton, (loading || images.length === 0) && { opacity: 0.5 }]} onPress={handleUpload} disabled={loading || images.length === 0}>
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Share Update</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Camera Modal */}
+      <Modal visible={tagModalVisible} animationType="slide">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}><Text style={styles.modalTitle}>Tag Business</Text><TouchableOpacity onPress={() => setTagModalVisible(false)}><X size={24} color="#000" /></TouchableOpacity></View>
+          <View style={styles.modalSearchBox}><Search size={20} color="#6F767E" style={{ marginRight: 10 }} /><TextInput style={styles.modalSearchInput} placeholder="Search by name..." autoFocus value={searchQuery} onChangeText={setSearchQuery} /></View>
+          <FlatList data={searchResults} keyExtractor={(item) => item.id} renderItem={({ item }) => (
+            <TouchableOpacity style={styles.searchResultItem} onPress={() => { setSelectedBusiness(item); setTagModalVisible(false); setSearchQuery(''); }}>
+              <View style={styles.resultIcon}><Text style={styles.resultLetter}>{item.business_name.charAt(0)}</Text></View>
+              <View><Text style={styles.resultName}>{item.business_name}</Text><Text style={styles.resultSuburb}>{item.suburb}</Text></View>
+            </TouchableOpacity>
+          )} />
+        </SafeAreaView>
+      </Modal>
+
       <Modal visible={cameraVisible} animationType="slide">
-        <CameraView style={styles.camera} facing="back" ref={cameraRef}>
+        <CameraView style={styles.camera} ref={cameraRef}>
           <View style={styles.cameraOverlay}>
-            <TouchableOpacity style={styles.closeCamera} onPress={() => setCameraVisible(false)}>
-              <X size={30} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}>
-              <View style={styles.captureInternal} />
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.closeCamera} onPress={() => setCameraVisible(false)}><X size={30} color="#fff" /></TouchableOpacity>
+            <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}><View style={styles.captureInternal} /></TouchableOpacity>
           </View>
         </CameraView>
       </Modal>
@@ -290,29 +238,37 @@ const CreatePost = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   scrollContent: { paddingBottom: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 60, paddingBottom: 20 },
+  header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 20 },
   headerTitle: { fontSize: 24, fontWeight: '800', color: '#1A1D1F' },
+  headerSubtitle: { fontSize: 14, color: '#6F767E' },
   mediaSection: { height: 140, marginVertical: 10, paddingHorizontal: 24 },
   imageScroll: { gap: 12, alignItems: 'center' },
   thumbnailContainer: { width: 100, height: 100, borderRadius: 12, overflow: 'hidden', backgroundColor: '#F4F4F4' },
   thumbnail: { width: '100%', height: '100%' },
   removeBtn: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10, padding: 2 },
-  mediaButtons: { height: 100, justifyContent: 'center' },
-  addMediaBtn: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#F4F4F4', justifyContent: 'center', alignItems: 'center', borderWeight: 1, borderColor: '#EFEFEF' },
-  emptyMedia: { width: '100%', height: 100, borderRadius: 16, backgroundColor: '#F4F4F4', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#EFEFEF' },
-  emptyMediaText: { color: '#6F767E', fontSize: 14, fontWeight: '500' },
-  aiButton: { backgroundColor: '#0095f6', flexDirection: 'row', marginHorizontal: 24, marginTop: 16, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  aiButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  buttonRow: { flexDirection: 'row', gap: 12, height: 100 },
+  largeMediaBtn: { flex: 1, height: 100, backgroundColor: '#F4F4F4', borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  mediaBtnText: { marginTop: 8, fontSize: 12, fontWeight: '700', color: '#1A1D1F' },
+  addMoreBtn: { width: 100, height: 100, borderRadius: 12, backgroundColor: '#F4F4F4', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#EFEFEF' },
   form: { paddingHorizontal: 24, marginTop: 24 },
   inputGroup: { marginBottom: 20 },
-  label: { fontSize: 13, fontWeight: '700', color: '#1A1D1F', marginBottom: 8, textTransform: 'uppercase' },
+  label: { fontSize: 12, fontWeight: '700', color: '#1A1D1F', marginBottom: 8, textTransform: 'uppercase' },
   input: { backgroundColor: '#F4F4F4', borderRadius: 16, paddingHorizontal: 16, height: 56, fontSize: 16, color: '#1A1D1F' },
+  searchSelector: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F4F4F4', borderRadius: 16, paddingHorizontal: 16, height: 56 },
+  selectorText: { flex: 1, marginLeft: 12, fontSize: 15, color: '#6F767E' },
   textArea: { height: 100, paddingTop: 16, textAlignVertical: 'top' },
-  pickerWrapper: { backgroundColor: '#F4F4F4', borderRadius: 16, height: 56, justifyContent: 'center' },
-  submitButton: { backgroundColor: '#1A1D1F', flexDirection: 'row', height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  submitButton: { backgroundColor: '#1A1D1F', height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
   submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  disabledBtn: { opacity: 0.5 },
-  btnIcon: { marginRight: 8 },
+  modalContainer: { flex: 1, backgroundColor: '#fff' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 24 },
+  modalTitle: { fontSize: 20, fontWeight: '800' },
+  modalSearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F4F4F4', marginHorizontal: 24, paddingHorizontal: 16, borderRadius: 12, height: 50 },
+  modalSearchInput: { flex: 1, fontSize: 16 },
+  searchResultItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F4F4F4' },
+  resultIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1A1D1F', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  resultLetter: { color: '#fff', fontWeight: 'bold' },
+  resultName: { fontSize: 16, fontWeight: '700' },
+  resultSuburb: { fontSize: 13, color: '#6F767E' },
   camera: { flex: 1 },
   cameraOverlay: { flex: 1, backgroundColor: 'transparent', justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 40 },
   closeCamera: { position: 'absolute', top: 60, left: 24 },

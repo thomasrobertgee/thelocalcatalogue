@@ -93,13 +93,12 @@ const PostDetail = ({ route, navigation }) => {
             </View>
             
             <Text style={styles.suburbCategory}>
-              {business?.suburb || post.location || 'Altona North'} • {business?.category || 'Local Business'}
+              {`${business?.suburb || post.location || 'Altona North'} • ${business?.category || 'Local Business'}`}
             </Text>
           </View>
 
           {/* Caption */}
           <View style={styles.section}>
-            {product_name && <Text style={styles.productTitle}>{product_name}</Text>}
             <Text style={styles.descriptionText}>{description}</Text>
           </View>
 
@@ -118,22 +117,10 @@ const PostDetail = ({ route, navigation }) => {
             </View>
           )}
 
-          {/* Interaction Section */}
-          <View style={styles.footerActions}>
-            <TouchableOpacity 
-              style={styles.primaryButton} 
-              onPress={handleGetDirections}
-              activeOpacity={0.9}
-            >
-              <Navigation size={18} color="#fff" style={styles.btnIcon} />
-              <Text style={styles.primaryButtonText}>Get Directions</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.followWrapper}>
-              <FollowButton businessId={business?.id || post.businessId} />
-            </View>
-          </View>
-        </View>
+          {/* Follow Button Component */}
+          <View style={styles.followWrapper}>
+            <FollowButton businessId={business?.id || post.business_id} />
+          </View>        </View>
       </ScrollView>
     </View>
   );
